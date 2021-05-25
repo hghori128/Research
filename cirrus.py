@@ -27,8 +27,8 @@ def coadd(q,z,layer):
     z = z[1:l+1]
     # Reshape q and z so that the bins from each layer are in the
     # same column
-    qc = np.reshape(q, (layer,int(l/layer)), order='F')
-    zc = np.reshape(z, (layer,int(l/layer)), order='F')
+    qc = np.reshape(q, (layer,int(l/layer)), order='A')
+    zc = np.reshape(z, (layer,int(l/layer)), order='A')
     print(np.shape(q))
     qc = (np.sum(qc,0))
     zc = (np.median(zc,0))
@@ -60,16 +60,17 @@ def open_file(year, month, day):
   clouds = files.variables['cbh'][:]
   cloud_variation = files.variables['cbe'][:]
   time_raw = files.variables['time'][:]
+  range_raw= files.variables['range'][:]
 
   files.close()
 
-  return [backscatter, clouds, time_raw] 
+  return [backscatter, clouds, time_raw, range_raw] 
 
 
 #days to process (this is because python doesn't like 04 format):
 
-days = [ '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', 
-      '13', '14', '15']
+days = [ '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12' 
+   ]
 
 
 nstep = 15  #set equal to number of days to process
@@ -82,7 +83,7 @@ n = 0  #day counter
 #loop over days to process
 for i in range(len(days)):
 
-  [b, cloud, time_raw] = open_file('2020', '04', days[i])
+  [b, cloud, time_raw, height_range] = open_file('2020', '04', days[i])
   
   print(np.shape(cloud[0:5740:,0]))
   clouds[n:,] = np.copy(cloud[0:5720:,0])
@@ -100,12 +101,17 @@ realtime = [ customdate + datetime.timedelta(seconds=i) for i in (time_raw)]
 
 utc = np.array([f.strftime('%H:%M') for f in (realtime)])
 
+#pick out clouds that are reported as greater than 5000m in the cloud base 
+# height variable 
 
 istep = 0
-cloud_5000m = np.empty((nstep, 5720))
+cloud_5000m = np.empty((nstep, 5720)) #array to store cloud base heights >5000m
+
 for i in range(len(days)):
-  cloud5000 = np.where(clouds[istep]> 5000, clouds[istep], 0)
-  cloud_5000m[istep:,]= np.copy(cloud5000)
+  #append height values for clouds >5000m and 0 otherwise
+  cloud5000 = np.where(clouds[istep]> 5000, clouds[istep], 0) 
+
+  cloud_5000m[istep:,]= np.copy(cloud5000) #append to array for the day
   istep += 1
 
 #%%
@@ -114,11 +120,13 @@ for i in range(len(days)):
 istep = 0
 cloud_time_ranges = []  #array of times where there are clouds >5000m in UTC TIME
 cloud_backscatter = []  #array of raw backscatter only where there are clouds >5000m 
+cloud_heights = []    #array of cloud heights only when >5000m
 
 for i in range(len(days)):
   print(istep)
   f = np.where(cloud_5000m[istep]>0)
-  print(f)
+  cloud_heights.append(cloud_5000m[istep][f])
+  print(np.shape(f))
   size = np.size(f)
   print(size)
 
@@ -127,20 +135,70 @@ for i in range(len(days)):
     bs = raw_backscatter[istep][f]
     cloud_time_ranges.append(timespan)
     cloud_backscatter.append(bs)
-
+    
 
     istep += 1
+  
   else:    #if no clouds >5000m, append the entire row as 0 
     cloud_time_ranges.append(0)
     cloud_backscatter.append(0)
     istep += 1
     continue
+
+
+#%%
+
+#USE THIS TO PLOT TIME SPAN OF THE CLOUD 
+
+import matplotlib.ticker as ticker
+import xlsxwriter
+
+
+for i in range(len(days)):
+
+  size = np.size(cloud_time_ranges[i])
   
+  
+  if size > 1:
+   
+    fig = plt.figure( )
+    ax = fig.add_subplot(2,1,1)
+    ax1 = fig.add_subplot(2,1,2, sharex=ax)
+    ax.plot( cloud_time_ranges[i], cloud_backscatter[i]/1000000)
+    s = i+1
+    #ax.xaxis.set_major_locator(ticker.LinearLocator(12))
+    ax.set_ylabel(' Backscatter  (a.u)')
+    ax.set_xlabel('UTC time (hh:mm)', fontsize='large')
+    ax.set_title("Cirrus Cloud Backscatter and Heights on April %s 2020" %s)  
+
+    ax1.plot( cloud_time_ranges[i], np.transpose(cloud_heights[i]))
+    ax1.xaxis.set_major_locator(ticker.LinearLocator(12))
+    ax1.set_ylabel(' Cloud height (m)')
+    ax1.set_xlabel('UTC time (hh:mm)', fontsize='large')
+    #ax1.set_title("Cloud Backscatter on April %i 2020" %i)  
+
+    fig.savefig("python_pretty_plot{}".format(s))
+
+    workbook = xlsxwriter.Workbook('2020_april.xlsx')
+
+    worksheet = workbook.add_worksheet()
+    worksheet.insert_image("A2","python_pretty_plot{}.png".format(i))
+
+    #workbook.close()
+  
+  else:
+ 
+
+    continue
+
+#%%
+
+
 
 
 # %%
 
-#FUNCTION TO MAKE APPROPRIATE PROFILE---------------------------------------------------------
+#FUNCTION TO MAKE APPROPRIATE PROFILE when given normal backscatter raw variable---------------------------------------------------------
 
 def make_profile(data, time1, time2):
   """this function makes the appropriate backscatter profile given the input backscatter raw
@@ -155,7 +213,7 @@ def make_profile(data, time1, time2):
 
   timespan1 = time1*239
   timespan2 = time2*239
-  d_night_test1 = b1[(timespan1):(timespan2),:] 
+  d_night_test1 = data[(timespan1):(timespan2),:] 
 
   d_nightsum_test1 = np.mean(d_night_test1,0)
 
@@ -169,9 +227,9 @@ def make_profile(data, time1, time2):
   [x1,y1] = coadd(dens_overlap_test1,range_L0,5)
   return [x1,y1]
 
-[x1,y1] = make_profile(b1, 17, 24)
-
-plt.plot(x1/10000000,y1)
+[x1,y1] = make_profile(cloud_backscatter, 0, 6)
+#%%
+plt.plot(cloud_backscatter[11]/10000000,height_range[0:799])
 plt.xlabel('Range Corrected Backscatter power (a.u)', fontsize='large')
 plt.ylabel('Height (m)', fontsize='large')
 plt.title('Backscatter Power over April 17 2020 (04:00 - 08:00)', fontsize='large')
@@ -208,9 +266,5 @@ df = ds.to_dataframe()
 #d1 = np.array(files18_L2_1.variables['attenuated_backscatter_0'][:])
 
 #%%
-url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
-names = ['preg', 'plas', 'pres', 'skin', 'test', 'mass', 'pedi', 'age', 'class']
-data = pandas.read_csv(url, names=names)
-scatter_matrix(data)
-plt.show()
+
 # %%
