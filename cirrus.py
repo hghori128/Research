@@ -35,6 +35,7 @@ def coadd(q,z,layer):
 
 # %%
 #FUNCTION TO OPEN FILEs, LOAD DATA ------------------------------------------------------------------
+import glob
 
 def open_file(year, month, day):
   """This function requires input of the filename for the particular day of interest
@@ -53,43 +54,70 @@ def open_file(year, month, day):
   str5 = '*.nc'
   filename = str1 +str2 + '/'+ str3 + '/'+ str4 +'/'+str5
   print(filename)
-  files = nc.MFDataset(filename)
+  
+  #print(os.listdir(filename))
+  
+  if glob.glob(filename) :
+    
+    files = nc.MFDataset(filename)
+    backscatter = files.variables['beta_raw'][:]
+    clouds = files.variables['cbh'][:]
+    cloud_variation = files.variables['cbe'][:]
+    time_raw = files.variables['time'][:]
+    range_raw= files.variables['range'][:]
+    files.close()
 
-  backscatter = files.variables['beta_raw'][:]
-  clouds = files.variables['cbh'][:]
-  cloud_variation = files.variables['cbe'][:]
-  time_raw = files.variables['time'][:]
-  range_raw= files.variables['range'][:]
+  else:
+    backscatter = np.zeros((5740, 1024))
+    clouds = np.zeros((5740, 3))
+    cloud_variation = np.zeros((5740, 3))
+    time_raw = np.zeros((5740, 3))
+    range_raw= np.zeros(1024)
 
-  files.close()
+  
 
   return [backscatter, clouds, time_raw, range_raw] 
 
 
 #days to process (this is because python doesn't like 04 format):
 
-days = [ '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', 
-  '15', '16', '17', '18', '19', '20' , '21', '22', '23', '24', '25', '26', '27',
+days = [ '01', '02', '03', '04',  '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', 
+  '15', '16', '17', '18', '19', '20' , '21','22','23', '24', '25', '26', '27',
   '28', '29', '30']
-
+#days = ['21']
 
 nstep = 30  #set equal to number of days to process
 
-clouds = np.empty((nstep, 5720)) 
-raw_backscatter = np.empty((nstep, 5720))
+clouds = np.empty((nstep, 5740)) 
+raw_backscatter = np.empty((nstep, 5740))
 
 n = 0  #day counter 
 
 #loop over days to process
 for i in range(len(days)):
 
-  [b, cloud, time_raw, height_range] = open_file('2020', '04', days[i])
-  
-  print(np.shape(cloud[0:5740:,0]))
-  clouds[n:,] = np.copy(cloud[0:5720:,0])
-  raw_backscatter[n:,] = np.copy(b[0:5720:,0])
+  [b, cloud, time_raw, height_range] = open_file('2017', '04', days[i])
+  datasize = np.size(cloud[:,0])
+  print(datasize)
 
-  n  += 1
+  if datasize > 5739:
+
+    clouds[n:,] = np.copy(cloud[0:5740:,0])
+    raw_backscatter[n:,] = np.copy(b[0:5740:,0])
+    n  += 1
+  elif cloud.all == 0:
+    clouds[n:,] = np.copy(0)
+    raw_backscatter[n:,] = np.copy(0)
+    
+  else:
+    diff = 5740 - datasize 
+    newdata1 = np.pad(cloud, (0,diff), 'constant')
+    newdata2 = np.pad(b, (0,diff), 'constant')
+    clouds[n:,] = np.copy(newdata1[0:5740:,0])
+    raw_backscatter[n:,] = np.copy(newdata2[0:5740:,0])
+    n += 1
+
+
 
 #%%
 
@@ -105,7 +133,7 @@ utc = np.array([f.strftime('%H:%M') for f in (realtime)])
 # height variable 
 
 istep = 0
-cloud_5000m = np.empty((nstep, 5720)) #array to store cloud base heights >5000m
+cloud_5000m = np.empty((nstep, 5740)) #array to store cloud base heights >5000m
 
 for i in range(len(days)):
   #append height values for clouds >5000m and 0 otherwise
@@ -169,7 +197,7 @@ for i in range(len(days)):
     #ax.xaxis.set_major_locator(ticker.LinearLocator(12))
     ax.set_ylabel(' Backscatter  (a.u)')
     ax.set_xlabel('UTC time (hh:mm)', fontsize='large')
-    ax.set_title("Cirrus Cloud Backscatter and Heights on April %s 2020" %s)  
+    ax.set_title("Cirrus Cloud Backscatter and Heights on April %s 2017" %s)  
 
     ax1.plot( cloud_time_ranges[i], np.transpose(cloud_heights[i]))
     ax1.xaxis.set_major_locator(ticker.LinearLocator(12))
@@ -178,6 +206,7 @@ for i in range(len(days)):
     #ax1.set_title("Cloud Backscatter on April %i 2020" %i)  
 
     fig.savefig("cloud_plot{}".format(s))
+    plt.close()
 
     
     #workbook.close()
@@ -190,7 +219,7 @@ for i in range(len(days)):
 #%%
 #CREATE EXCELL FILE HERE WITH ALL PLOTS----------------------------
 
-workbook = xlsxwriter.Workbook('2020_april.xlsx')
+workbook = xlsxwriter.Workbook('2017_april.xlsx')
 
 worksheet = workbook.add_worksheet()
 
