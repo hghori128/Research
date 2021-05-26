@@ -8,7 +8,6 @@ import numpy.matlib as matlib
 import datetime
 import matplotlib
 
-from matplotlib import cm
 import pandas as pd
 import netCDF4 as nc
 
@@ -69,11 +68,12 @@ def open_file(year, month, day):
 
 #days to process (this is because python doesn't like 04 format):
 
-days = [ '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12' 
-   ]
+days = [ '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', 
+  '15', '16', '17', '18', '19', '20' , '21', '22', '23', '24', '25', '26', '27',
+  '28', '29', '30']
 
 
-nstep = 15  #set equal to number of days to process
+nstep = 30  #set equal to number of days to process
 
 clouds = np.empty((nstep, 5720)) 
 raw_backscatter = np.empty((nstep, 5720))
@@ -177,13 +177,9 @@ for i in range(len(days)):
     ax1.set_xlabel('UTC time (hh:mm)', fontsize='large')
     #ax1.set_title("Cloud Backscatter on April %i 2020" %i)  
 
-    fig.savefig("python_pretty_plot{}".format(s))
+    fig.savefig("cloud_plot{}".format(s))
 
-    workbook = xlsxwriter.Workbook('2020_april.xlsx')
-
-    worksheet = workbook.add_worksheet()
-    worksheet.insert_image("A2","python_pretty_plot{}.png".format(i))
-
+    
     #workbook.close()
   
   else:
@@ -192,6 +188,33 @@ for i in range(len(days)):
     continue
 
 #%%
+#CREATE EXCELL FILE HERE WITH ALL PLOTS----------------------------
+
+workbook = xlsxwriter.Workbook('2020_april.xlsx')
+
+worksheet = workbook.add_worksheet()
+
+fstep = 0
+for j in range(len(days)):
+
+  size2 = np.size(cloud_time_ranges[j])
+  print(np.shape(size2))
+
+  #print(size2)
+  if size2>=1:
+
+    
+
+    image = '/Users/hannanghori/Documents/university shit/4th year/Research/cloud_plot{}.png'.format(j)
+   
+  
+    worksheet.insert_image(0,fstep,image, {'x_scale': 0.7, 'y_scale': 0.7})
+    fstep += 1
+    print(fstep)
+  else:
+    continue
+
+workbook.close()
 
 
 
