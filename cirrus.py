@@ -119,19 +119,14 @@ for i in range(len(days)):
     n += 1
 
 
-
-#%%
-
-
-
+#make time array:
 
 customdate = datetime.datetime(year=1904, month=1, day=1, hour=0,second=0)
 realtime = [ customdate + datetime.timedelta(seconds=i) for i in (time_raw)]
 
 utc = np.array([f.strftime('%H:%M') for f in (realtime)])
 
-#pick out clouds that are reported as greater than 5000m in the cloud base 
-# height variable 
+#PICK OUT CLOUDS REPORTED >5000M in the cloud base height variable 
 
 istep = 0
 cloud_5000m = np.empty((nstep, 5740,3)) #array to store cloud base heights >5000m
@@ -144,7 +139,7 @@ for i in range(len(days)):
   istep += 1
 
 #%%
-#PICKS OUT THE TIME SPANS OVER WHICH THERE IS CLOUD COVER ABOVE 5000m
+#PICKS OUT THE TIME SPANS OVER WHICH THERE IS CLOUD COVER ABOVE 5000m----------------------
 
 istep = 0
 cloud_time_ranges_l1 = []  #array of times where there are clouds >5000m in UTC TIME
@@ -204,7 +199,7 @@ for i in range(len(days)):
 
 #%%
 
-#USE THIS TO PLOT TIME SPAN OF THE CLOUD 
+#USE THIS TO PLOT TIME SPAN OF THE CLOUD-------------------------------------
 
 import matplotlib.ticker as ticker
 import xlsxwriter
@@ -218,33 +213,39 @@ for i in range(len(days)):
   if size > 1:
     print(i)
     fig = plt.figure( )
-    ax = fig.add_subplot(2,1,1)
-    ax1 = fig.add_subplot(2,1,2, sharex=ax)
-    #ax.plot( cloud_time_ranges[i], cloud_backscatter[i]/1000000)
-    s = i+1
+    ax = fig.add_subplot(2,1,2)
+    ax1 = fig.add_subplot(2,1,1)
+    #ax.plot( cloud_time_ranges[i], cloud_backscatter[i]/1000000)  #to plot raw backscatter 
+    
+    ax.hist(np.transpose(cloud_heights_l1[i]))  #plot histogram for layer 1 clouds
+    #ax.hist(np.transpose(cloud_heights_l2[i])) #uncomment to plot for layer 2 clouds
+
+
+    s = i+1   #day counter
+
     #ax.xaxis.set_major_locator(ticker.LinearLocator(12))
-    ax.set_ylabel(' Backscatter  (a.u)')
-    ax.set_xlabel('UTC time (hh:mm)', fontsize='large')
-    ax.set_title("Cirrus Cloud Backscatter and Heights on April %s 2017" %s)  
+    ax.set_ylabel(' Counts  (a.u)')
+    ax.set_xlabel('Heights (m)', fontsize='medium')
+    ax1.set_title("Cirrus Cloud Histogram and Heights on April %s 2017" %s)  
 
     print(np.shape(cloud_time_ranges_l1[i]))
     print(np.shape(cloud_heights_l1[i]))
     ax1.plot( cloud_time_ranges_l1[i], np.transpose(cloud_heights_l1[i]))
     ax1.scatter(cloud_time_ranges_l1[i], np.transpose(cloud_heights_l1[i]), label='cloud layer 1')
     
-    #ax1.plot( cloud_time_ranges_l2[i], np.transpose(cloud_heights_l2[i]), lw=0.5)
+    #ax1.plot( cloud_time_ranges_l2[i], np.transpose(cloud_heights_l2[i]), lw=0.5)                    #uncomment to plot line
     ax1.scatter(cloud_time_ranges_l2[i], np.transpose(cloud_heights_l2[i]), label='cloud layer 2')
     
-    ax1.plot( cloud_time_ranges_l3[i], np.transpose(cloud_heights_l3[i]), lw=0.5, c='green')
+    #ax1.plot( cloud_time_ranges_l3[i], np.transpose(cloud_heights_l3[i]), lw=0.5, c='green')         #uncomment to plot line
     ax1.scatter(cloud_time_ranges_l3[i], np.transpose(cloud_heights_l3[i]), label='cloud layer 3')
-    ax1.legend()
+    ax1.legend(fontsize='small', loc='upper right')
     ax1.xaxis.set_major_locator(ticker.LinearLocator(12))
     ax1.set_ylabel(' Cloud height (m)')
-    ax1.set_xlabel('UTC time (hh:mm)', fontsize='large')
+    ax1.set_xlabel('UTC time (hh:mm)', fontsize='medium')
     #ax1.set_title("Cloud Backscatter on April %i 2020" %i)  
 
-    #fig.savefig("cloud_plot{}".format(s))
-    #plt.close()
+    fig.savefig("cloud_plot{}".format(s))
+    plt.close()
 
     
     #workbook.close()
@@ -253,18 +254,35 @@ for i in range(len(days)):
     print(i)
 
     continue
+#%%
+#create compiled array to MAKE HISTOGRAM FOR WHOLE MONTH
+
+cloudbase = [] #array of cloud heights
+
+step = 0
+for j in range(len(days)):
+    size = np.size(cloud_heights_l1[j])
+    if size > 1:
+        cloudbase.append(cloud_heights_l1[j])
+        step +=1
+        
+    else:
+      continue
+      step +=1
+
+plt.hist(cloudbase)
 
 #%%
 #CREATE EXCELL FILE HERE WITH ALL PLOTS----------------------------
 
-workbook = xlsxwriter.Workbook('2017_april.xlsx')
+workbook = xlsxwriter.Workbook('2020_april.xlsx')
 
 worksheet = workbook.add_worksheet()
 
 fstep = 0
 for j in range(len(days)):
 
-  size2 = np.size(cloud_time_ranges[j])
+  size2 = np.size(cloud_time_ranges_l1[j])
   print(np.shape(size2))
 
   #print(size2)
@@ -284,9 +302,7 @@ for j in range(len(days)):
 workbook.close()
 
 
-
-
-# %%
+# %%----------------------------------------------
 
 #FUNCTION TO MAKE APPROPRIATE PROFILE when given normal backscatter raw variable---------------------------------------------------------
 
@@ -320,43 +336,11 @@ def make_profile(data, time1, time2):
 [x1,y1] = make_profile(b, '00:00', '06:00')
 
 
-#%%
 plt.plot(x1/10000000,y1)
 plt.xlabel('Range Corrected Backscatter power (a.u)', fontsize='large')
 plt.ylabel('Height (m)', fontsize='large')
 plt.title('Backscatter Power over April 17 2020 (04:00 - 08:00)', fontsize='large')
 plt.xlim([0,0.45])
 plt.ylim([2000,15000])
-
-# %%
-
-grad = np.gradient(x1)
-plt.plot(grad/10000000,y1)
-plt.xlim([-0.07,0.07])
-plt.ylim([2000,15000])
-plt.xlabel('Gradient of Backscatter (a.u)', fontsize='large')
-plt.ylabel('Height (m)', fontsize='large')
-plt.title('Gradient of Backscatter Power over April 17 2020 (04:00 - 08:00)', fontsize='large')
-# %%
-from numpy import diff
-
-dydx = diff(y1)/diff(x1)
-plt.plot(dydx[0:203],y1[0:203])
-#plt.xlim([-0.02,0.05])
-plt.ylim([0,15000])
-plt.xlabel('Range Corrected Backscatter power (a.u)', fontsize='large')
-plt.ylabel('Height (m)', fontsize='large')
-plt.title('Backscatter Power over April 17 2020 (04:00 - 08:00)', fontsize='large')
-
-# %%
-import matplotlib.pyplot as plt
-import pandas
-from pandas.plotting import scatter_matrix
-
-ds = xr.open_mfdataset('/Users/hannanghori/Documents/university shit/4th year/Thesis/Cronyn/2020/04/25/*.nc',concat_dim="time", data_vars='minimal', coords='minimal', compat='override')
-df = ds.to_dataframe()
-#d1 = np.array(files18_L2_1.variables['attenuated_backscatter_0'][:])
-
-#%%
 
 # %%
